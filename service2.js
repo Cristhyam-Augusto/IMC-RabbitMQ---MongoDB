@@ -7,8 +7,7 @@ const rabbitmqUser = process.env.RABBITMQ_USER || "guest";
 const rabbitmqPassword = process.env.RABBITMQ_PASSWORD || "guest";
 const rabbitmqQueue = process.env.RABBITMQ_QUEUE || "imc_queue";
 
-const mongodbURI =
-  "mongodb+srv://cris:24061998@cluster0.zqw2vbl.mongodb.net/test";
+const mongodbURI = "";
 
 async function connectToMongoDB() {
   await mongoose.connect(mongodbURI, {
