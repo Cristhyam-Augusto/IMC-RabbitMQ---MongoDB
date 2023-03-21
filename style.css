@@ -1,0 +1,10 @@
+body {
+    display: flex;
+    justify-content: center;
+}
+
+.container-main form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
