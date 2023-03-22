@@ -1,54 +1,37 @@
-// CRIAR COLLECTION NO MONGO DB
-// front -> api -> api bate numa fila -> receiver calcula o imc e retorna --> MODO DESAFIO
-// handler, service, model
-
 const express = require("express");
-const bodyParser = require("body-parser");
-const amqp = require("amqplib");
 const cors = require("cors");
+const { createChannel } = require("./queue.js");
+const IMC = require("./service2");
 
 const app = express();
-
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-const rabbitmqHost = process.env.RABBITMQ_HOST || "localhost";
-const rabbitmqPort = process.env.RABBITMQ_PORT || 5672;
-const rabbitmqUser = process.env.RABBITMQ_USER || "guest";
-const rabbitmqPassword = process.env.RABBITMQ_PASSWORD || "guest";
-const rabbitmqQueue = process.env.RABBITMQ_QUEUE || "imc_queue";
+app.use(express.json());
 
 async function sendToQueue(data) {
-  const connection = await amqp.connect({
-    hostname: rabbitmqHost,
-    port: rabbitmqPort,
-    username: rabbitmqUser,
-    password: rabbitmqPassword,
-  });
-
-  const channel = await connection.createChannel();
-  await channel.assertQueue(rabbitmqQueue);
+  const channel = await createChannel();
   console.log(`Mensagem enviada para a fila`);
 
   const payload = JSON.stringify(data);
-  channel.sendToQueue(rabbitmqQueue, Buffer.from(payload));
+  channel.sendToQueue("imc_queue", Buffer.from(payload));
 
   setTimeout(() => {
-    connection.close();
+    channel.close();
   }, 500);
 }
 
 app.post("/calcular-imc", async (req, res) => {
   const { peso, altura, name } = req.body;
-  if (name == null || name == undefined) {
-    console.log("oi");
+  if (!name) {
+    console.log("Nome não foi enviado no payload");
+    return res.status(400).json({ error: "Nome não foi enviado no payload" });
   }
-  console.log(req.body);
+
+  console.log(`Payload recebido: ${JSON.stringify(req.body)}`);
   const data = { peso, altura, name };
 
   try {
     await sendToQueue(data);
+    console.log("Payload enviado para a fila do RabbitMQ");
     res.json({ message: "Payload enviado para a fila do RabbitMQ." });
   } catch (err) {
     console.error("Erro ao enviar payload para a fila do RabbitMQ:", err);
@@ -58,6 +41,18 @@ app.post("/calcular-imc", async (req, res) => {
   }
 });
 
-app.listen(3000, () => {
-  console.log("API rodando em http://localhost:3000");
+app.get("/imc", async (req, res) => {
+  try {
+    const imcData = await IMC.find();
+    console.log(`Dados do IMC retornados: ${JSON.stringify(imcData)}`);
+    res.json(imcData);
+  } catch (err) {
+    console.error("Erro ao buscar dados do banco de dados:", err);
+    res.status(500).json({ error: "Erro ao buscar dados do banco de dados." });
+  }
+});
+
+const port = 3000;
+app.listen(port, () => {
+  console.log(`API rodando em http://localhost:${port}`);
 });
