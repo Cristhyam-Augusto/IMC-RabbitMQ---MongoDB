@@ -1,10 +1,9 @@
+require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
 const { createChannel } = require("./queue.js");
-const IMC = require("./service2");
+const IMC = require("./consumer");
 
 const app = express();
-app.use(cors());
 app.use(express.json());
 
 async function sendToQueue(data) {
@@ -13,10 +12,6 @@ async function sendToQueue(data) {
 
   const payload = JSON.stringify(data);
   channel.sendToQueue("imc_queue", Buffer.from(payload));
-
-  setTimeout(() => {
-    channel.close();
-  }, 500);
 }
 
 app.post("/calcular-imc", async (req, res) => {
@@ -27,11 +22,9 @@ app.post("/calcular-imc", async (req, res) => {
   }
 
   console.log(`Payload recebido: ${JSON.stringify(req.body)}`);
-  const data = { peso, altura, name };
 
   try {
-    await sendToQueue(data);
-    console.log("Payload enviado para a fila do RabbitMQ");
+    await sendToQueue({ peso, altura, name });
     res.json({ message: "Payload enviado para a fila do RabbitMQ." });
   } catch (err) {
     console.error("Erro ao enviar payload para a fila do RabbitMQ:", err);
@@ -43,8 +36,17 @@ app.post("/calcular-imc", async (req, res) => {
 
 app.get("/imc", async (req, res) => {
   try {
-    const imcData = await IMC.find();
-    console.log(`Dados do IMC retornados: ${JSON.stringify(imcData)}`);
+    const { user, min, max } = req.query;
+    let imcData;
+    if (user) {
+      imcData = await IMC.findOne({ name: user });
+    } else {
+      let query = {};
+      if (min && max) {
+        query = { imc: { $gte: min, $lte: max } };
+      }
+      imcData = await IMC.find(query);
+    }
     res.json(imcData);
   } catch (err) {
     console.error("Erro ao buscar dados do banco de dados:", err);
